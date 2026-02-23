@@ -1,116 +1,164 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="Twitch Streamers Dashboard",
-    page_icon="🎮",
+    page_title="Toyota Stock Dashboard",
+    page_icon="🚗",
     layout="wide"
 )
 
-st.title("🎮 Top 1000 Twitch Streamers Dashboard (May 2024)")
-st.markdown("Interactive Dashboard สำหรับวิเคราะห์ข้อมูล Top Twitch Streamers")
+st.title("🚗 Toyota Motors Stock Market Dashboard")
+st.markdown("Interactive Dashboard สำหรับวิเคราะห์ข้อมูลราคาหุ้น Toyota")
 
-# ===============================
+# =============================
 # Upload CSV
-# ===============================
-uploaded_file = st.file_uploader("📂 Upload Twitch CSV File", type=["csv"])
+# =============================
+uploaded_file = st.file_uploader("📂 Upload Toyota Stock CSV File", type=["csv"])
 
 if uploaded_file:
 
     df = pd.read_csv(uploaded_file)
 
-    st.subheader("📄 ข้อมูลทั้งหมด")
-    st.dataframe(df)
+    # ถ้ามีคอลัมน์ Date -> แปลงเป็น datetime
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.sort_values("Date")
 
-    # ===============================
-    # Sidebar Filters
-    # ===============================
+    # =============================
+    # Sidebar Filter
+    # =============================
     st.sidebar.header("🔎 Filters")
 
-    # Filter by game
-    if "game_name" in df.columns:
-        games = df["game_name"].unique()
-        selected_games = st.sidebar.multiselect(
-            "เลือกเกม",
-            games,
-            default=games
+    if "Date" in df.columns:
+        min_date = df["Date"].min()
+        max_date = df["Date"].max()
+
+        date_range = st.sidebar.date_input(
+            "Select Date Range",
+            [min_date, max_date],
+            min_value=min_date,
+            max_value=max_date
         )
-        df = df[df["game_name"].isin(selected_games)]
 
-    # Filter by country
-    if "country" in df.columns:
-        countries = df["country"].unique()
-        selected_countries = st.sidebar.multiselect(
-            "เลือกประเทศ",
-            countries,
-            default=countries
-        )
-        df = df[df["country"].isin(selected_countries)]
+        df = df[
+            (df["Date"] >= pd.to_datetime(date_range[0])) &
+            (df["Date"] <= pd.to_datetime(date_range[1]))
+        ]
 
-    # ===============================
-    # Top 10 by Followers
-    # ===============================
-    st.subheader("🏆 Top 10 by Followers")
+    # =============================
+    # Moving Averages
+    # =============================
+    if "Close" in df.columns:
+        df["MA7"] = df["Close"].rolling(7).mean()
+        df["MA30"] = df["Close"].rolling(30).mean()
 
-    if "followers" in df.columns:
-        top_followers = df.sort_values(by="followers", ascending=False).head(10)
+    # =============================
+    # KPI Section
+    # =============================
+    st.subheader("📌 Key Performance Indicators")
 
-        fig1 = px.bar(
-            top_followers,
-            x="followers",
-            y="user_name",
-            orientation="h",
-            text="followers",
-            title="Top 10 Twitch Streamers by Followers"
-        )
-        fig1.update_traces(textposition="outside")
-        st.plotly_chart(fig1, use_container_width=True)
+    col1, col2, col3, col4 = st.columns(4)
 
-    # ===============================
-    # Top 10 by Average Viewers
-    # ===============================
-    st.subheader("📈 Top 10 by Average Viewers")
+    if "High" in df.columns:
+        col1.metric("Highest Price", f"${df['High'].max():.2f}")
 
-    if "avg_viewers" in df.columns:
-        top_viewers = df.sort_values(by="avg_viewers", ascending=False).head(10)
+    if "Low" in df.columns:
+        col2.metric("Lowest Price", f"${df['Low'].min():.2f}")
 
+    if "Close" in df.columns:
+        col3.metric("Average Close", f"${df['Close'].mean():.2f}")
+
+    if "Volume" in df.columns:
+        col4.metric("Total Volume", f"{int(df['Volume'].sum()):,}")
+
+    # =============================
+    # Price Trend Chart
+    # =============================
+    st.subheader("📈 Price Trend with Moving Average")
+
+    fig = go.Figure()
+
+    if "Close" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df["Date"],
+            y=df["Close"],
+            mode="lines",
+            name="Close Price"
+        ))
+
+    if "MA7" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df["Date"],
+            y=df["MA7"],
+            mode="lines",
+            name="MA7"
+        ))
+
+    if "MA30" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df["Date"],
+            y=df["MA30"],
+            mode="lines",
+            name="MA30"
+        ))
+
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Price ($)",
+        hovermode="x unified"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # =============================
+    # Volume Chart
+    # =============================
+    st.subheader("📊 Volume Analysis")
+
+    if "Volume" in df.columns:
         fig2 = px.bar(
-            top_viewers,
-            x="avg_viewers",
-            y="user_name",
-            orientation="h",
-            text="avg_viewers",
-            title="Top 10 Twitch Streamers by Avg Viewers"
+            df,
+            x="Date",
+            y="Volume",
+            title="Trading Volume"
         )
-        fig2.update_traces(textposition="outside")
         st.plotly_chart(fig2, use_container_width=True)
 
-    # ===============================
-    # Trend Chart (Followers vs Views)
-    # ===============================
-    st.subheader("📊 Followers vs Avg Viewers")
+    # =============================
+    # Candlestick Chart
+    # =============================
+    st.subheader("🕯 Candlestick Chart")
 
-    if "followers" in df.columns and "avg_viewers" in df.columns:
-        fig3 = px.scatter(
-            df,
-            x="followers",
-            y="avg_viewers",
-            hover_data=["user_name", "game_name"],
-            title="Followers vs Avg Viewers"
+    if all(col in df.columns for col in ["Open", "High", "Low", "Close"]):
+        fig3 = go.Figure(data=[go.Candlestick(
+            x=df["Date"],
+            open=df["Open"],
+            high=df["High"],
+            low=df["Low"],
+            close=df["Close"]
+        )])
+        fig3.update_layout(
+            xaxis_title="Date",
+            yaxis_title="Price ($)"
         )
         st.plotly_chart(fig3, use_container_width=True)
 
-    # ===============================
-    # Download Filtered Data
-    # ===============================
-    st.subheader("⬇ Download Data")
+    # =============================
+    # Raw Data Table
+    # =============================
+    st.subheader("📄 Raw Data")
+    st.dataframe(df)
 
+    # =============================
+    # Download Filtered Data
+    # =============================
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="Download Filtered Data",
+        "⬇ Download Filtered Data",
         data=csv,
-        file_name="filtered_twitch_streamers.csv",
+        file_name="filtered_toyota_stock.csv",
         mime="text/csv"
     )
 
