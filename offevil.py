@@ -3,110 +3,114 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(
-    page_title="Baby Names Dashboard",
-    page_icon="👶",
+    page_title="Twitch Streamers Dashboard",
+    page_icon="🎮",
     layout="wide"
 )
 
-st.title("👶 US Top 1000 Baby Names (1880-2020)")
-st.markdown("Interactive Dashboard สำหรับวิเคราะห์ชื่อเด็กยอดนิยม")
+st.title("🎮 Top 1000 Twitch Streamers Dashboard (May 2024)")
+st.markdown("Interactive Dashboard สำหรับวิเคราะห์ข้อมูล Top Twitch Streamers")
 
-# =========================
-# Upload file
-# =========================
-uploaded_file = st.file_uploader("📂 Upload CSV File", type=["csv"])
+# ===============================
+# Upload CSV
+# ===============================
+uploaded_file = st.file_uploader("📂 Upload Twitch CSV File", type=["csv"])
 
 if uploaded_file:
 
-    # อ่านไฟล์ CSV
     df = pd.read_csv(uploaded_file)
 
-    # แปลงปีให้เป็น int
-    if "year" in df.columns:
-        df["year"] = df["year"].astype(int)
+    st.subheader("📄 ข้อมูลทั้งหมด")
+    st.dataframe(df)
 
+    # ===============================
     # Sidebar Filters
+    # ===============================
     st.sidebar.header("🔎 Filters")
 
-    # เลือกช่วงปี
-    min_year = int(df["year"].min())
-    max_year = int(df["year"].max())
-    year_range = st.sidebar.slider(
-        "Select year range",
-        min_year,
-        max_year,
-        (min_year, max_year)
-    )
-    df = df[
-        (df["year"] >= year_range[0]) &
-        (df["year"] <= year_range[1])
-    ]
-
-    # เลือกเพศ
-    if "gender" in df.columns:
-        gender_list = df["gender"].unique()
-        selected_gender = st.sidebar.multiselect(
-            "Select gender",
-            gender_list,
-            default=gender_list
+    # Filter by game
+    if "game_name" in df.columns:
+        games = df["game_name"].unique()
+        selected_games = st.sidebar.multiselect(
+            "เลือกเกม",
+            games,
+            default=games
         )
-        df = df[df["gender"].isin(selected_gender)]
+        df = df[df["game_name"].isin(selected_games)]
 
-    # =========================
-    # Top 10 Names
-    # =========================
-    st.subheader("🏆 Top 10 Popular Names")
+    # Filter by country
+    if "country" in df.columns:
+        countries = df["country"].unique()
+        selected_countries = st.sidebar.multiselect(
+            "เลือกประเทศ",
+            countries,
+            default=countries
+        )
+        df = df[df["country"].isin(selected_countries)]
 
-    # หา top 10 ตามจำนวน
-    if "count" in df.columns:
-        top10 = df.groupby("name")["count"].sum().reset_index()
-        top10 = top10.sort_values(by="count", ascending=False).head(10)
+    # ===============================
+    # Top 10 by Followers
+    # ===============================
+    st.subheader("🏆 Top 10 by Followers")
+
+    if "followers" in df.columns:
+        top_followers = df.sort_values(by="followers", ascending=False).head(10)
 
         fig1 = px.bar(
-            top10,
-            x="name",
-            y="count",
-            text="count",
-            title="Top 10 Most Popular Names"
+            top_followers,
+            x="followers",
+            y="user_name",
+            orientation="h",
+            text="followers",
+            title="Top 10 Twitch Streamers by Followers"
         )
         fig1.update_traces(textposition="outside")
         st.plotly_chart(fig1, use_container_width=True)
 
-    # =========================
-    # Trend Chart
-    # =========================
-    st.subheader("📈 Name Trend Over Time")
+    # ===============================
+    # Top 10 by Average Viewers
+    # ===============================
+    st.subheader("📈 Top 10 by Average Viewers")
 
-    # ให้ผู้ใช้เลือกชื่อ
-    all_names = df["name"].unique()
-    selected_name = st.selectbox(
-        "Select a name to view trend",
-        all_names
-    )
+    if "avg_viewers" in df.columns:
+        top_viewers = df.sort_values(by="avg_viewers", ascending=False).head(10)
 
-    trend_data = df[df["name"] == selected_name]
-    fig2 = px.line(
-        trend_data,
-        x="year",
-        y="count",
-        title=f"Trend of {selected_name}"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+        fig2 = px.bar(
+            top_viewers,
+            x="avg_viewers",
+            y="user_name",
+            orientation="h",
+            text="avg_viewers",
+            title="Top 10 Twitch Streamers by Avg Viewers"
+        )
+        fig2.update_traces(textposition="outside")
+        st.plotly_chart(fig2, use_container_width=True)
 
-    # =========================
-    # Raw Data Table
-    # =========================
-    st.subheader("📄 Raw Data")
-    st.dataframe(df)
+    # ===============================
+    # Trend Chart (Followers vs Views)
+    # ===============================
+    st.subheader("📊 Followers vs Avg Viewers")
 
-    # =========================
-    # Download filtered data
-    # =========================
+    if "followers" in df.columns and "avg_viewers" in df.columns:
+        fig3 = px.scatter(
+            df,
+            x="followers",
+            y="avg_viewers",
+            hover_data=["user_name", "game_name"],
+            title="Followers vs Avg Viewers"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+
+    # ===============================
+    # Download Filtered Data
+    # ===============================
+    st.subheader("⬇ Download Data")
+
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="⬇ Download Filtered Data",
+        label="Download Filtered Data",
         data=csv,
-        file_name="filtered_baby_names.csv",
+        file_name="filtered_twitch_streamers.csv",
         mime="text/csv"
     )
 
